@@ -31,3 +31,12 @@ LDRIT 衍生的第一個開源專案（規劃版）。
 1. 相同輸入重跑，輸出結構一致。
 2. 三份示例檔可穩定產出可讀摘要。
 3. 人工審閱可直接用於下一步決策。
+
+## AgentLetters 模式
+```powershell
+python src/generate_consensus_note.py `
+  --mode agentletters `
+  --input "C:\path\YYYYMMDD__ALL__主題__discussion.md" `
+  --output "C:\path\YYYYMMDD__ConsensusNote__主題__v1.md"
+```
+詳細規範見：`docs/integration-agentletters-v0.1.md`

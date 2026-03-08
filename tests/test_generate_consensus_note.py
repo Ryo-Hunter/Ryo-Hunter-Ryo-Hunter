@@ -5,7 +5,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from src.generate_consensus_note import build_note, infer_topic, parse_messages
+from src.generate_consensus_note import (
+    build_note,
+    infer_topic,
+    parse_messages,
+    validate_agentletters_input,
+)
 
 
 class ConsensusParserTests(unittest.TestCase):
@@ -30,6 +35,29 @@ class ConsensusParserTests(unittest.TestCase):
             "## 建議主控決策",
         ]:
             self.assertIn(heading, note)
+
+    def test_agentletters_validation_filename(self) -> None:
+        msgs = parse_messages(self.sample)
+        with self.assertRaises(ValueError):
+            validate_agentletters_input(Path("discussion.sample.md"), self.sample, msgs)
+
+    def test_agentletters_validation_requires_risk(self) -> None:
+        text = """
+---
+From: A
+時間：20260308-120000
+---
+我們同意先驗證。
+
+---
+From: B
+時間：20260308-120100
+---
+我同意，下一步建立指標。
+"""
+        msgs = parse_messages(text)
+        with self.assertRaises(ValueError):
+            validate_agentletters_input(Path("20260308__ALL__Topic__discussion.md"), text, msgs)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,9 @@
 ﻿#!/usr/bin/env python3
-"""ldrit-memory-loop v0.6 parser.
+"""ldrit-memory-loop v0.7 parser.
 
-Improvements over v0.5:
+Improvements over v0.6:
 - Neutral review-tone rewriting for disagreement items.
+- AgentLetters integration mode and input validation.
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ BLOCK_RE = re.compile(
     re.DOTALL,
 )
 SENTENCE_SPLIT_RE = re.compile(r"[\n。！？!?；;]+")
+AGENTLETTERS_DISCUSSION_RE = re.compile(r"^\d{8}__ALL__.+__discussion\.md$")
 
 NOISE_PREFIXES = (
     "from:",
@@ -94,6 +96,21 @@ def parse_messages(text: str) -> list[Message]:
             )
         )
     return messages
+
+
+def validate_agentletters_input(in_path: Path, text: str, messages: list[Message]) -> None:
+    """Validate minimum AgentLetters constraints for discussion summarization."""
+    name = in_path.name
+    if not AGENTLETTERS_DISCUSSION_RE.match(name):
+        raise ValueError(
+            "agentletters 模式要求輸入檔名符合：YYYYMMDD__ALL__主題名稱__discussion.md"
+        )
+    if "From:" not in text or "時間：" not in text:
+        raise ValueError("agentletters 模式要求輸入含有 From 與時間欄位")
+    if len({m.author for m in messages}) < 2:
+        raise ValueError("agentletters 模式要求至少 2 位參與者發言")
+    if "我目前最擔心的風險" not in text:
+        raise ValueError("agentletters 模式要求討論內容至少包含一段風險揭露")
 
 
 def unique_keep_order(items: Iterable[str]) -> list[str]:
@@ -309,7 +326,7 @@ def render_section(title: str, items: list[str]) -> str:
     return "\n".join(lines)
 
 
-def build_note(topic: str, source_name: str, messages: list[Message]) -> str:
+def build_note(topic: str, source_name: str, messages: list[Message], mode: str = "generic") -> str:
     if len({m.author for m in messages}) < 2:
         raise ValueError("輸入不符合最低結構：至少需要 2 位參與者發言")
 
@@ -346,7 +363,8 @@ def build_note(topic: str, source_name: str, messages: list[Message]) -> str:
         f"## 主題：{topic}",
         "",
         f"- 來源：`{source_name}`",
-        "- 產出方式：ldrit-memory-loop v0.6",
+        "- 產出方式：ldrit-memory-loop v0.7",
+        f"- 模式：{mode}",
         "",
         render_section("已收斂共識", consensus),
         "",
@@ -369,6 +387,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--input", required=True, help="Path to discussion markdown")
     p.add_argument("--output", required=True, help="Path to write consensus note")
     p.add_argument("--topic", default="", help="Optional topic override")
+    p.add_argument(
+        "--mode",
+        default="generic",
+        choices=["generic", "agentletters"],
+        help="Input mode. Use agentletters for AgentLetters discussion files.",
+    )
     return p.parse_args()
 
 
@@ -381,7 +405,10 @@ def main() -> int:
     messages = parse_messages(text)
     topic = args.topic.strip() or infer_topic(text)
 
-    note = build_note(topic=topic, source_name=in_path.name, messages=messages)
+    if args.mode == "agentletters":
+        validate_agentletters_input(in_path, text, messages)
+
+    note = build_note(topic=topic, source_name=in_path.name, messages=messages, mode=args.mode)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(note, encoding="utf-8")
     print(f"Wrote: {out_path}")
